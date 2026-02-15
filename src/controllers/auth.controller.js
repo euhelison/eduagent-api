@@ -2,7 +2,6 @@ const Estudante = require('../models/Estudante');
 const Token = require('../models/Token');
 
 class AuthController {
-  // Gerar token (admin)
   async gerarToken(req, res) {
     try {
       const { senha } = req.body;
@@ -11,7 +10,6 @@ class AuthController {
         return res.status(401).json({ erro: 'Senha incorreta' });
       }
 
-      // Gerar token aleatório
       const token = Math.random().toString(36).substring(2) + 
                     Math.random().toString(36).substring(2);
       
@@ -25,7 +23,6 @@ class AuthController {
     }
   }
 
-  // Login
   async login(req, res) {
     try {
       const { nome, whatsapp, token } = req.body;
@@ -36,20 +33,29 @@ class AuthController {
         });
       }
 
-      // Verificar token
-      const tokenDoc = await Token.findOne({ token, usado: false });
+      // VERIFICAR TOKEN PRIMEIRO (ANTES DE TUDO)
+      const tokenDoc = await Token.findOne({ token });
       
       if (!tokenDoc) {
-        return res.status(401).json({ erro: 'Token inválido ou já utilizado' });
+        return res.status(401).json({ erro: 'Token inválido' });
       }
+
+      if (tokenDoc.usado) {
+        return res.status(401).json({ erro: 'Token já foi utilizado' });
+      }
+
+      // MARCAR TOKEN COMO USADO IMEDIATAMENTE
+      tokenDoc.usado = true;
+      tokenDoc.usado_por = whatsapp;
+      tokenDoc.usado_em = new Date();
+      await tokenDoc.save();
 
       // Buscar ou criar estudante
       let estudante = await Estudante.findOne({ whatsapp });
 
       if (!estudante) {
-        // Criar novo estudante
         const trialFim = new Date();
-        trialFim.setDate(trialFim.getDate() + 7); // 7 dias de trial
+        trialFim.setDate(trialFim.getDate() + 7);
 
         estudante = new Estudante({
           nome,
@@ -60,12 +66,6 @@ class AuthController {
         });
         
         await estudante.save();
-
-        // Marcar token como usado
-        tokenDoc.usado = true;
-        tokenDoc.usado_por = whatsapp;
-        tokenDoc.usado_em = new Date();
-        await tokenDoc.save();
       }
 
       res.json({
