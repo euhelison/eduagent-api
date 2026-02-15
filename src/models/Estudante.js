@@ -11,7 +11,6 @@ const estudanteSchema = new mongoose.Schema({
     unique: true 
   },
   
-  // Plano
   plano: { 
     type: String, 
     enum: ['trial', 'estudante', 'pro', 'cancelado'], 
@@ -23,12 +22,9 @@ const estudanteSchema = new mongoose.Schema({
   },
   trial_fim: Date,
   
-  // Stripe
-  stripe_customer_id: String,
-  stripe_subscription_id: String,
-  stripe_status: String,
+  mercadopago_payment_id: String,
+  mercadopago_status: String,
   
-  // Uso
   sessoes_usadas_mes: { 
     type: Number, 
     default: 0 
@@ -38,7 +34,6 @@ const estudanteSchema = new mongoose.Schema({
     default: Date.now 
   },
   
-  // Progresso
   total_sessoes: { 
     type: Number, 
     default: 0 

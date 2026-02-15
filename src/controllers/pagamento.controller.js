@@ -27,7 +27,7 @@ class PagamentoController {
       );
 
       res.json({ 
-        pagamentoUrl: pagamento.init_point, // Link pro checkout
+        pagamentoUrl: pagamento.init_point,
         pagamentoId: pagamento.id
       });
     } catch (erro) {
@@ -38,22 +38,76 @@ class PagamentoController {
 
   async webhook(req, res) {
     try {
-      const { type, data } = req.body;
+      console.log('📩 Webhook recebido:', JSON.stringify(req.body, null, 2));
+      
+      const { type, data, action } = req.body;
 
-      if (type === 'payment') {
-        const paymentId = data.id;
-        
-        // Aqui você pode buscar detalhes do pagamento
-        // e atualizar o status no banco
-        console.log('Pagamento recebido:', paymentId);
-        
-        // TODO: Implementar lógica de verificação e ativação
-      }
-
+      // Responder OK imediatamente
       res.status(200).send('OK');
+
+      // Processar notificação de pagamento
+      if (type === 'payment' || action === 'payment.created' || action === 'payment.updated') {
+        const paymentId = data?.id;
+        
+        if (!paymentId) {
+          console.log('⚠️  Sem payment ID');
+          return;
+        }
+
+        console.log('💳 Processando pagamento:', paymentId);
+
+        // Buscar detalhes do pagamento no Mercado Pago
+        const { MercadoPagoConfig, Payment } = require('mercadopago');
+        const client = new MercadoPagoConfig({ 
+          accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN 
+        });
+        const payment = new Payment(client);
+
+        const paymentInfo = await payment.get({ id: paymentId });
+        
+        console.log('📄 Status do pagamento:', paymentInfo.status);
+        console.log('📄 Metadata:', paymentInfo.metadata);
+
+        // Se pagamento aprovado
+        if (paymentInfo.status === 'approved') {
+          const userId = paymentInfo.metadata?.user_id;
+          const plano = paymentInfo.metadata?.plano;
+          const whatsapp = paymentInfo.metadata?.whatsapp;
+
+          console.log('✅ Pagamento aprovado!');
+          console.log('👤 User ID:', userId);
+          console.log('📦 Plano:', plano);
+          console.log('📱 WhatsApp:', whatsapp);
+
+          if (userId && plano) {
+            const estudante = await Estudante.findByIdAndUpdate(
+              userId,
+              { 
+                plano: plano,
+                mercadopago_payment_id: paymentId,
+                mercadopago_status: 'approved'
+              },
+              { new: true }
+            );
+
+            console.log('🎉 Plano ativado para:', estudante?.nome || userId);
+          } else if (whatsapp && plano) {
+            const estudante = await Estudante.findOneAndUpdate(
+              { whatsapp },
+              { 
+                plano: plano,
+                mercadopago_payment_id: paymentId,
+                mercadopago_status: 'approved'
+              },
+              { new: true }
+            );
+
+            console.log('🎉 Plano ativado para WhatsApp:', whatsapp);
+          }
+        }
+      }
     } catch (erro) {
-      console.error('Erro no webhook:', erro);
-      res.status(500).send('Error');
+      console.error('❌ Erro no webhook:', erro);
     }
   }
 
