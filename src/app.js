@@ -8,12 +8,10 @@ const pagamentoRoutes = require('./routes/pagamento.routes');
 const app = express();
 
 app.use(cors({
-  origin: [
+  origin: process.env.FRONTEND_URL?.split(',') || [
     'http://localhost:3002',
     'http://localhost:3001',
-    'http://localhost:3000',
-    'https://agenteeducacional.com',
-    'https://www.agenteeducacional.com'
+    'http://localhost:3000'
   ],
   credentials: true
 }));
