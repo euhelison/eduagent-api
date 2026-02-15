@@ -27,13 +27,34 @@ class AuthController {
     try {
       const { nome, whatsapp, token } = req.body;
 
-      if (!nome || !whatsapp || !token) {
+      if (!nome || !whatsapp) {
         return res.status(400).json({ 
-          erro: 'Nome, WhatsApp e token são obrigatórios' 
+          erro: 'Nome e WhatsApp são obrigatórios' 
         });
       }
 
-      // VERIFICAR TOKEN PRIMEIRO (ANTES DE TUDO)
+      // Verificar se o estudante já existe
+      let estudante = await Estudante.findOne({ whatsapp });
+
+      // Se já existe, faz login direto (SEM precisar de token)
+      if (estudante) {
+        return res.json({
+          nome: estudante.nome,
+          whatsapp: estudante.whatsapp,
+          plano: estudante.plano,
+          trial_fim: estudante.trial_fim,
+          ja_cadastrado: true
+        });
+      }
+
+      // Se NÃO existe, precisa de token para criar conta
+      if (!token) {
+        return res.status(400).json({ 
+          erro: 'Token é obrigatório para novos cadastros' 
+        });
+      }
+
+      // Verificar token
       const tokenDoc = await Token.findOne({ token });
       
       if (!tokenDoc) {
@@ -44,39 +65,53 @@ class AuthController {
         return res.status(401).json({ erro: 'Token já foi utilizado' });
       }
 
-      // MARCAR TOKEN COMO USADO IMEDIATAMENTE
+      // Marcar token como usado
       tokenDoc.usado = true;
       tokenDoc.usado_por = whatsapp;
       tokenDoc.usado_em = new Date();
       await tokenDoc.save();
 
-      // Buscar ou criar estudante
-      let estudante = await Estudante.findOne({ whatsapp });
+      // Criar novo estudante
+      const trialFim = new Date();
+      trialFim.setDate(trialFim.getDate() + 7);
 
-      if (!estudante) {
-        const trialFim = new Date();
-        trialFim.setDate(trialFim.getDate() + 7);
-
-        estudante = new Estudante({
-          nome,
-          whatsapp,
-          plano: 'trial',
-          trial_inicio: new Date(),
-          trial_fim: trialFim
-        });
-        
-        await estudante.save();
-      }
+      estudante = new Estudante({
+        nome,
+        whatsapp,
+        plano: 'trial',
+        trial_inicio: new Date(),
+        trial_fim: trialFim
+      });
+      
+      await estudante.save();
 
       res.json({
         nome: estudante.nome,
         whatsapp: estudante.whatsapp,
         plano: estudante.plano,
-        trial_fim: estudante.trial_fim
+        trial_fim: estudante.trial_fim,
+        ja_cadastrado: false
       });
     } catch (erro) {
       console.error('Erro no login:', erro);
       res.status(500).json({ erro: 'Erro ao fazer login' });
+    }
+  }
+
+  // Nova rota: Verificar se WhatsApp já existe
+  async verificarWhatsapp(req, res) {
+    try {
+      const { whatsapp } = req.params;
+      
+      const estudante = await Estudante.findOne({ whatsapp });
+      
+      res.json({
+        existe: !!estudante,
+        nome: estudante?.nome || null
+      });
+    } catch (erro) {
+      console.error('Erro ao verificar WhatsApp:', erro);
+      res.status(500).json({ erro: 'Erro ao verificar WhatsApp' });
     }
   }
 }
