@@ -43,9 +43,25 @@ class ClaudeService {
       const response = await this.client.messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 2000,
-        system: this.skillContent,
+        system: [
+          {
+            type: "text",
+            text: this.skillContent,
+            cache_control: { type: "ephemeral" }
+          }
+        ],
         messages: messages
       });
+
+      // Log de uso do cache (para monitorar economia)
+      if (response.usage) {
+        const cacheHits = response.usage.cache_read_input_tokens || 0;
+        const totalInput = response.usage.input_tokens || 0;
+        if (cacheHits > 0) {
+          const economia = ((cacheHits / totalInput) * 100).toFixed(1);
+          console.log(`💰 Cache hit: ${cacheHits} tokens (${economia}% economia)`);
+        }
+      }
 
       return response.content[0].text;
     } catch (erro) {
